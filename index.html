@@ -51,12 +51,30 @@
             height: 100% !important;
             display: block;
         }
+
+        .layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            transform-origin: center;
+            will-change: transform;
+            pointer-events: none;
+            z-index: 10;
+            mix-blend-mode: overlay;
+            opacity: 0.2;
+        }
     </style>
 </head>
 
 <body>
     <div class="stage-wrap">
-        <div class="stage" id="stage"></div>
+        <div class="stage" id="stage">
+            <img src="Glitch Black.gif" class="layer layer-multiply" alt="">
+        </div>
     </div>
 
     <!-- PixiJS v7 (WebGL renderer). Neu can dung offline, tai file nay ve va tro toi local path. -->
@@ -67,7 +85,6 @@
             const stageEl = document.getElementById('stage');
             const STAGE_W = 1200, STAGE_H = 900;
 
-            // === CAU HINH LOGIC (GIU NGUYEN NHU BAN CANVAS 2D GOC) ===
             const EYE_CONFIG = { centerX: 600, centerY: 300, maxRadius: 9 };
             const MAX_DRAG_DIST = 250;
             const MIN_EXTRA_LENGTH = 2000;
@@ -85,14 +102,9 @@
             let targetEye = { x: 0, y: 0 };
             let currentEye = { x: 0, y: 0 };
 
-            // ==========================================
-            // 1) KHOI TAO PIXI APPLICATION (WEBGL)
-            // ==========================================
             const app = new PIXI.Application({
                 width: STAGE_W,
                 height: STAGE_H,
-                // Nen DAC trung mau .stage (khong dung backgroundAlpha:0) de tranh loi Safari/iOS
-                // composite sai premultiplied-alpha tren canvas trong suot, gay nhat/bac mau.
                 backgroundColor: 0x1c1c1c,
                 backgroundAlpha: 1,
                 antialias: true,
@@ -109,9 +121,6 @@
                 console.warn('PixiJS dang fallback ve Canvas renderer thay vi WebGL. Hieu nang se khong duoc cai thien nhu mong doi.');
             }
 
-            // ==========================================
-            // 2) LOAD ANH
-            // ==========================================
             const rawImages = {};
             const textures = {};
 
@@ -125,7 +134,7 @@
                 rightShadow: IMAGE_DATA.Right_Shadow,
                 left: IMAGE_DATA.Left,
                 right: IMAGE_DATA.Right,
-                leftMask: IMAGE_DATA.Left_Mask, // CHI dung de che (ERASE), KHONG bao gio hien thi truc tiep
+                leftMask: IMAGE_DATA.Left_Mask, 
             };
 
             let loadedCount = 0;
@@ -142,9 +151,6 @@
                 };
             }
 
-            // ==========================================
-            // 3) HIT-TEST: MANG ALPHA TIEN TINH
-            // ==========================================
             const hitCanvas = document.createElement('canvas');
             hitCanvas.width = STAGE_W; hitCanvas.height = STAGE_H;
             const hitCtx = hitCanvas.getContext('2d', { willReadFrequently: true });
@@ -184,11 +190,6 @@
                 return { x: minX, y: minY, w: (maxX - minX + 1), h: (maxY - minY + 1) };
             }
 
-            // ==========================================
-            // 4) SHADE + INSIDE: KHONG bi mask trong ban goc (chi la 2 sprite thuong)
-            //    LEFT_SHADOW x RIGHT_SHADOW (multiply) + LEFT + RIGHT: gop lai, cache theo offset
-            //    (giong ky thuat da dung o cac ban truoc, giam so lan ve moi frame)
-            // ==========================================
             let lastCachedOffset = null;
             let bgSprite, shadeSprite, insideSprite;
 
@@ -197,11 +198,6 @@
             let shadowContainer, leftRightContainer;
             let leftShadowSprite, rightShadowSprite, leftPieceSprite, rightPieceSprite;
 
-            // === SHADER "AO GIAC CHUYEN DONG" CHO HOA TIET BEN TRONG SHADE ===
-            // Y tuong: lay ALPHA tai toa do GOC (vTextureCoord khong doi) de giu nguyen 100%
-            // shape/silhouette; nhung lay MAU tai toa do da bi "lam meo" (warp) theo thoi gian
-            // bang vai lop song sin chong nhau (domain warp) - tao cam giac hoa tiet ben trong
-            // dang "boi"/xoay lien tuc ma vien ngoai khong he nhuc nhich mot pixel nao.
             const shadeSwirlFragmentShader = `
                 precision mediump float;
                 varying vec2 vTextureCoord;
@@ -240,7 +236,7 @@
             function buildStaticLayers() {
                 bgSprite = new PIXI.Sprite(textures.bg);
                 shadeSprite = new PIXI.Sprite(textures.shade);
-                shadeSprite.filters = [shadeSwirlFilter]; // Ao giac chuyen dong, khong doi shape/silhouette
+                shadeSprite.filters = [shadeSwirlFilter]; 
                 insideSprite = new PIXI.Sprite(textures.inside);
 
                 leftShadowSprite = new PIXI.Sprite(textures.leftShadow);
@@ -258,7 +254,6 @@
             function rebuildOffsetLayersIfNeeded(force) {
                 if (!force && currentOffset === lastCachedOffset) return;
 
-                // Shade dich chuyen theo offset, Inside dung yen (giong y het canvas goc)
                 shadeSprite.x = -currentOffset;
                 insideSprite.x = 0;
 
@@ -273,10 +268,6 @@
                 lastCachedOffset = currentOffset;
             }
 
-            // ==========================================
-            // 5) MAT (source-in giong ky thuat cac ban truoc, dung RenderTexture + SRC_IN
-            //    thay vi sprite.mask cua Pixi de tranh loi nhat mau da gap truoc do)
-            // ==========================================
             let eyeResultSprite, eyeContentSprite, eyeBBox, eyeCompositeContainer, eyeRT;
 
             function buildEye() {
@@ -298,17 +289,10 @@
                 app.renderer.render(eyeCompositeContainer, { renderTexture: eyeRT, clear: true });
             }
 
-            // ==========================================
-            // 6) MAU DAY CHI: vang dong nhat, khong con gradient nhieu-stop nhu tinsel truoc do
-            // ==========================================
             const YARN_COLOR = 0xC9950A;        // vang chinh cho than day
             const YARN_HIGHLIGHT = 0xFFF3B0;     // vang nhat hon, tao chut anh sang/do bong tren day
             const YARN_SHADOW_COLOR = 0x7A5A08;  // vang tram, dung cho lop nen duoi lop chinh 0xB8860B
 
-            // ==========================================
-            // 7) DAY CHI VANG: bong do + than day (mau vang dac) + highlight mong.
-            //    DUOC CHE boi Left_Mask (ERASE) - giu nguyen co che mask cua ban truoc.
-            // ==========================================
             let threads = [];
 
             function setupThreads() {
@@ -345,8 +329,6 @@
                 }
             }
 
-            // Day chi mau vang don gian: bong do + than day (vang) + net highlight mong tao chieu sau.
-            // Khong con bristles, khong con gradient nhieu mau, khong con hat lap lanh.
             function drawYarnThreads(g, time) {
                 threads.forEach((t, index) => {
                     const lx = t.localLeftX - currentOffset;
@@ -366,30 +348,24 @@
                     const cp2x = lx + (rx - lx) * 0.65 + (t.curveFactor2 * sagDepth * 0.25);
                     const cp2y = ry + sagDepth * 0.8 - pulse + (t.curveFactor2 * 20);
 
-                    // 1. Bong do diu ben duoi
                     g.lineStyle(4.5, 0x000000, 0.35);
                     g.moveTo(lx, ly + 2.5);
                     g.bezierCurveTo(cp1x, cp1y + 2.5, cp2x, cp2y + 2.5, rx, ry + 2.5);
 
-                    // 2. Lop nen tram hon (tao do day/khoi cho soi chi)
                     g.lineStyle({ width: 1.8, color: YARN_SHADOW_COLOR, alpha: 1, cap: PIXI.LINE_CAP.ROUND, join: PIXI.LINE_JOIN.ROUND });
                     g.moveTo(lx, ly);
                     g.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, rx, ry);
 
-                    // 3. Than day chinh - mau vang dong nhat
                     g.lineStyle({ width: 1.2, color: YARN_COLOR, alpha: 1, cap: PIXI.LINE_CAP.ROUND, join: PIXI.LINE_JOIN.ROUND });
                     g.moveTo(lx, ly);
                     g.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, rx, ry);
 
-                    // 4. Net highlight mong, hoi lech len tren, tao cam giac day co do bong/tron
                     g.lineStyle(0.9, YARN_HIGHLIGHT, 0.6);
                     g.moveTo(lx, ly - 0.6);
                     g.bezierCurveTo(cp1x, cp1y - 0.6, cp2x, cp2y - 0.6, rx, ry - 0.6);
                 });
             }
 
-            // Container rieng cho day chi, che boi Left_Mask (ERASE) - Left_Mask KHONG hien thi,
-            // chi dung de "duc lo" nhung phan day nam de len no.
             let yarnGraphics, yarnLeftMaskSprite, yarnContainer;
             const yarnRT = PIXI.RenderTexture.create({ width: STAGE_W, height: STAGE_H });
 
@@ -402,9 +378,6 @@
                 yarnContainer.addChild(yarnGraphics, yarnLeftMaskSprite);
             }
 
-            // ==========================================
-            // 8) SCENE GRAPH & MAIN LOOP
-            // ==========================================
             function onAllLoaded() {
                 leftAlpha = buildAlphaMap(rawImages.left);
                 rightAlpha = buildAlphaMap(rawImages.right);
@@ -421,10 +394,10 @@
                 const yarnMaskedSprite = new PIXI.Sprite(yarnRT);
 
                 app.stage.addChild(bgSprite);           // 1. Nen
-                app.stage.addChild(shadeSprite);         // 2. Shade (khong mask, giong ban goc)
-                app.stage.addChild(insideSprite);        // 3. Inside (khong mask, giong ban goc)
+                app.stage.addChild(shadeSprite);         // 2. Shade 
+                app.stage.addChild(insideSprite);        // 3. Inside 
                 app.stage.addChild(eyeResultSprite);      // 4. Mat
-                app.stage.addChild(yarnMaskedSprite);    // 5. Day chi vang, da che boi Left_Mask
+                app.stage.addChild(yarnMaskedSprite);    // 5. Day chi vang
                 app.stage.addChild(shadowSpriteOnStage); // 6. Bong do (multiply)
                 app.stage.addChild(leftRightSpriteOnStage); // 7. Left/Right
 
@@ -438,9 +411,6 @@
 
                     rebuildOffsetLayersIfNeeded(false);
 
-                    // Ve lai day chi moi frame (co animation), roi che boi Left_Mask (ERASE).
-                    // Left_Mask dich chuyen theo currentOffset, gan voi manh "left" giong quy uoc
-                    // da dung o ban truoc cho Left_Mask/threads.
                     yarnGraphics.clear();
                     drawYarnThreads(yarnGraphics, now);
                     yarnLeftMaskSprite.x = -currentOffset;
@@ -451,9 +421,7 @@
                 isLoaded = true;
             }
 
-            // ==========================================
-            // 9) INPUT
-            // ==========================================
+
             function getStagePos(e) {
                 const rect = app.view.getBoundingClientRect();
                 const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
@@ -469,9 +437,6 @@
                 const px = Math.floor(x), py = Math.floor(y);
                 if (px < 0 || px >= STAGE_W || py < 0 || py >= STAGE_H) return null;
 
-                // QUAN TRONG: currentOffset la so thap phan; phai lam tron RIENG cho chi so mang
-                // (TypedArray voi chi so khong nguyen luon tra ve undefined) - xem giai thich chi
-                // tiet o file truoc; day la loi da xac dinh duoc va sua o ban truoc do.
                 const leftSrcX = Math.round(px + currentOffset);
                 if (leftSrcX >= 0 && leftSrcX < STAGE_W) {
                     if (leftAlpha[py * STAGE_W + leftSrcX] > 10) return 'left';
@@ -499,8 +464,6 @@
             function onPointerMove(e) {
                 if (!isLoaded) return;
 
-                // Phong thu: neu isDragging=true nhung nut chuot da thuc su nha (VD: nha ngoai
-                // cua so trinh duyet) thi tu dong reset, tranh ket trang thai keo mai mai.
                 if (isDragging && !e.touches && typeof e.buttons === 'number' && e.buttons === 0) {
                     onPointerUp();
                 }
